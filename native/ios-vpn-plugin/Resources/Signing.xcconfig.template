@@ -1,0 +1,7 @@
+// iOS signing identifiers for Lanbridge.
+// Copy these values into the host Xcode project after the iOS app project is generated.
+
+DEVELOPMENT_TEAM = 8VHFT94C93
+LANBRIDGE_APP_BUNDLE_ID = com.ssyoo.vpn
+LANBRIDGE_TUNNEL_BUNDLE_ID = com.ssyoo.vpn.network-extension
+LANBRIDGE_APP_GROUP_ID = group.com.ssyoo.vpn

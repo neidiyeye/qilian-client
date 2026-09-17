@@ -1,0 +1,16 @@
+.DS_Store
+.dart_tool/
+.flutter-plugins-dependencies
+.idea/
+.android/
+.ios/
+.build/
+.swiftpm/
+Pods/
+build/
+DerivedData/
+xcuserdata/
+*.iml
+*.xcarchive
+*.ipa
+third_party/sing-box/Libbox.xcframework/

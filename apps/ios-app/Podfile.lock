@@ -1,0 +1,45 @@
+PODS:
+  - Flutter (1.0.0)
+  - flutter_secure_storage_darwin (10.0.0):
+    - Flutter
+    - FlutterMacOS
+  - FlutterPluginRegistrant (0.0.1):
+    - Flutter
+    - flutter_secure_storage_darwin
+    - shared_preferences_foundation
+    - url_launcher_ios
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - url_launcher_ios (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `../mobile-flutter/.ios/Flutter`)
+  - flutter_secure_storage_darwin (from `../mobile-flutter/.ios/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
+  - FlutterPluginRegistrant (from `../mobile-flutter/.ios/Flutter/FlutterPluginRegistrant`)
+  - shared_preferences_foundation (from `../mobile-flutter/.ios/.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - url_launcher_ios (from `../mobile-flutter/.ios/.symlinks/plugins/url_launcher_ios/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: "../mobile-flutter/.ios/Flutter"
+  flutter_secure_storage_darwin:
+    :path: "../mobile-flutter/.ios/.symlinks/plugins/flutter_secure_storage_darwin/darwin"
+  FlutterPluginRegistrant:
+    :path: "../mobile-flutter/.ios/Flutter/FlutterPluginRegistrant"
+  shared_preferences_foundation:
+    :path: "../mobile-flutter/.ios/.symlinks/plugins/shared_preferences_foundation/darwin"
+  url_launcher_ios:
+    :path: "../mobile-flutter/.ios/.symlinks/plugins/url_launcher_ios/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
+  FlutterPluginRegistrant: a1a9999548b8e80dcf86e95f692e9d6159465be4
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
+  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
+
+PODFILE CHECKSUM: 32586e53ccd56f3d4d10268d466e97babdc2a274
+
+COCOAPODS: 1.17.0

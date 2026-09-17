@@ -1,0 +1,58 @@
+name: LanbridgeIOS
+configs:
+  Debug: debug
+  Profile: release
+  Release: release
+options:
+  bundleIdPrefix: com.ssyoo
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 8VHFT94C93
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: 1.0
+    CURRENT_PROJECT_VERSION: 3
+targets:
+  Lanbridge:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Lanbridge
+        excludes:
+          - WebApp
+      - path: ../../native/ios-vpn-plugin/Sources/App
+        excludes:
+          - DbaoUniPluginBridge.swift.template
+          - DbaoVpnWebBridge.swift
+      - path: ../../native/ios-vpn-plugin/Sources/Shared
+    dependencies:
+      - target: LanbridgeTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ssyoo.vpn
+        PRODUCT_NAME: FireLink
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_FILE: Lanbridge/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Lanbridge/Lanbridge.entitlements
+  LanbridgeTunnel:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: ../../native/ios-vpn-plugin/Sources/Extension
+      - path: ../../native/ios-vpn-plugin/Sources/Shared
+    dependencies:
+      - framework: ../../third_party/sing-box/Libbox.xcframework
+        embed: false
+      - sdk: UIKit.framework
+      - sdk: libresolv.tbd
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ssyoo.vpn.network-extension
+        PRODUCT_NAME: LanbridgeTunnel
+        INFOPLIST_FILE: LanbridgeTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: LanbridgeTunnel/LanbridgeTunnel.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES

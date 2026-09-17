@@ -1,0 +1,106 @@
+import Foundation
+import NetworkExtension
+import DCUniModule
+
+// 该文件是 DCloud uni-app iOS 原生插件入口模板。
+// 放入 HBuilderX 生成的 iOS 原生插件工程后，将文件名改为 DbaoUniPluginBridge.swift。
+// 这里不参与 Swift Package 默认编译，因为本仓库没有提交 DCloud 原生 SDK。
+
+@objc(DbaoVpn)
+final class DbaoVpn: DCUniModule {
+    private lazy var manager = DbaoPacketTunnelManager(
+        appGroupID: "group.com.ssyoo.vpn",
+        tunnelBundleID: "com.ssyoo.vpn.network-extension"
+    )
+
+    @objc func prepare(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.prepare { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
+    @objc func connect(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        guard let payload = options["payload"] as? [String: Any] else {
+            callback(Self.reply(id: options["id"] as? String, error: "INVALID_ENGINE_CONFIG"), false)
+            return
+        }
+        manager.connect(payload: payload) { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
+    @objc func disconnect(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.disconnect { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
+    @objc func getStatus(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.status { status in
+            callback(Self.reply(id: options["id"] as? String, value: Self.statusText(status)), false)
+        }
+    }
+
+    @objc func getTrafficStats(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.trafficStats { result in
+            switch result {
+            case let .success(value):
+                callback(Self.reply(id: options["id"] as? String, value: value), false)
+            case let .failure(error):
+                callback(Self.reply(id: options["id"] as? String, error: Self.errorCode(error)), false)
+            }
+        }
+    }
+
+    @objc func checkConnectivity(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        guard let urlString = options["payload"] as? String else {
+            callback(Self.reply(id: options["id"] as? String, error: "INVALID_PROBE_URL"), false)
+            return
+        }
+        manager.checkConnectivity(urlString: urlString) { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
+    @objc func openConnectionLog(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.openConnectionLog { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
+    private static func reply(id: String?, result: Result<Void, Error>) -> [String: Any] {
+        switch result {
+        case .success:
+            return reply(id: id, value: [:])
+        case let .failure(error):
+            return reply(id: id, error: (error as? LocalizedError)?.errorDescription ?? "NATIVE_VPN_FAILED")
+        }
+    }
+
+    private static func reply(id: String?, value: Any) -> [String: Any] {
+        ["id": id ?? "", "ok": true, "result": value]
+    }
+
+    private static func reply(id: String?, error: String) -> [String: Any] {
+        ["id": id ?? "", "ok": false, "error": error]
+    }
+
+    private static func errorCode(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? "NATIVE_VPN_FAILED"
+    }
+
+    private static func statusText(_ status: NEVPNStatus) -> String {
+        switch status {
+        case .connected:
+            return "connected"
+        case .connecting, .reasserting:
+            return "connecting"
+        case .disconnecting:
+            return "disconnecting"
+        case .invalid, .disconnected:
+            return "disconnected"
+        @unknown default:
+            return "failed"
+        }
+    }
+}
