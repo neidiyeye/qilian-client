@@ -68,6 +68,12 @@ final class DbaoVpn: DCUniModule {
         }
     }
 
+    @objc func clearConnectionLog(_ options: [String: Any], callback: @escaping UniModuleKeepAliveCallback) {
+        manager.clearConnectionLog { result in
+            callback(Self.reply(id: options["id"] as? String, result: result), false)
+        }
+    }
+
     private static func reply(id: String?, result: Result<Void, Error>) -> [String: Any] {
         switch result {
         case .success:

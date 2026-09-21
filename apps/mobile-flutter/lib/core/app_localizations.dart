@@ -71,13 +71,18 @@ final class AppText {
   String get connectHint => pick('双击连接 VPN', 'Double tap to connect VPN');
   String get searchNodes => pick('搜索国家或线路', 'Search country or location');
   String get noMatchingNodes => pick('没有匹配的节点', 'No matching locations');
+  String get refresh => pick('刷新', 'Refresh');
   String routeCount(int count) => pick('$count 条线路', '$count locations');
   String get smartAssignedRoute => pick('智能分配线路', 'Smart assigned route');
   String get memberAccount => pick('会员账号', 'Member account');
+  String get userId => pick('用户 ID', 'User ID');
+  String get copy => pick('复制', 'Copy');
+  String get copied => pick('已复制', 'Copied');
   String get expiresAt => pick('到期时间', 'Expires');
   String get deviceQuota => pick('设备名额', 'Devices');
   String get onlineLimit => pick('同时在线', 'Online limit');
   String get loginDevices => pick('登录设备', 'Signed-in devices');
+  String get currentDevice => pick('当前设备', 'This device');
   String get settings => pick('设置', 'Settings');
   String get appearance => pick('外观', 'Appearance');
   String get followSystem => pick('跟随系统', 'System');
@@ -85,6 +90,30 @@ final class AppText {
   String get dark => pick('深色', 'Dark');
   String get language => pick('语言', 'Language');
   String get connectionLog => pick('连接日志', 'Connection log');
+  String get clearConnectionLog => pick('清除连接日志', 'Clear connection logs');
+  String get clearConnectionLogPrompt =>
+      pick('确定清除这台设备上的连接日志吗？', 'Clear connection logs stored on this device?');
+  String get clear => pick('清除', 'Clear');
+  String get smartRules => pick('智能规则', 'Smart routing');
+  String get smartRulesSubtitle =>
+      pick('查看当前下发的分流策略', 'View the active routing policy');
+  String get policyRevision => pick('策略版本', 'Policy revision');
+  String get privateNetworkDirect =>
+      pick('局域网与私有地址', 'Local and private networks');
+  String get chinaDomainDirect => pick('中国大陆域名', 'Mainland China domains');
+  String get chinaIpDirect => pick('中国大陆 IP', 'Mainland China IP ranges');
+  String get domainRecognition => pick('域名识别', 'Domain recognition');
+  String get ipv6Routing => pick('IPv6 路由', 'IPv6 routing');
+  String get dnsStrategy => pick('DNS 策略', 'DNS strategy');
+  String get customRules => pick('专用分流规则', 'Custom routing rules');
+  String get direct => pick('直连', 'Direct');
+  String get enabled => pick('已启用', 'Enabled');
+  String get disabled => pick('未启用', 'Disabled');
+  String get policyPending => pick(
+    '首次连接后显示服务端实际下发的策略。',
+    'The effective server policy appears after the first connection.',
+  );
+  String customRuleCount(int count) => pick('$count 条', '$count rules');
   String get logout => pick('退出登录', 'Sign out');
   String get unbindDevice => pick('解绑设备', 'Unbind device');
   String unbindPrompt(String name) => pick(

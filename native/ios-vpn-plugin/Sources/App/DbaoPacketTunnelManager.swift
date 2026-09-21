@@ -191,6 +191,11 @@ public final class DbaoPacketTunnelManager {
         completion(.success(()))
     }
 
+    public func clearConnectionLog(completion: @escaping (Result<Void, Error>) -> Void) {
+        store.clearDebugLog()
+        completion(.success(()))
+    }
+
     public func status(completion: @escaping (NEVPNStatus) -> Void) {
         loadExistingManager { result in
             switch result {

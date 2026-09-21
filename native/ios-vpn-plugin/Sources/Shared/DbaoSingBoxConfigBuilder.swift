@@ -11,6 +11,7 @@ public enum DbaoSingBoxConfigBuilder {
               let route = payload["route"] as? [String: Any], !route.isEmpty else {
             throw DbaoTunnelError.invalidPayload
         }
+        let options = ClientOptions(payload["client_options"] as? [String: Any])
 
         var outboundsWithProbeGroup = outbounds
         outboundsWithProbeGroup.insert([
@@ -24,13 +25,19 @@ public enum DbaoSingBoxConfigBuilder {
 
         var routeWithResolver = route
         routeWithResolver["default_domain_resolver"] = routeWithResolver["default_domain_resolver"] ?? "bootstrap-dns"
-        routeWithResolver["rules"] = prependTunnelRouteActions(to: removingLegacyQUICReject(from: routeWithResolver["rules"]))
+        routeWithResolver["rules"] = prependTunnelRouteActions(
+            to: removingLegacyQUICReject(from: routeWithResolver["rules"]),
+            enableSniff: options.enableSniff
+        )
         routeWithResolver["rule_set"] = ruleSetsWithDownloadDetour(routeWithResolver["rule_set"])
 
+        var tunAddresses = ["172.19.0.1/30"]
+        if options.enableIPv6 {
+            tunAddresses.append("fdfe:dcba:9876::1/126")
+        }
+
         let complete: [String: Any] = [
-            // 上线前保留 info 级日志，真机出现协议兼容问题时可以从 App Group 导出。
-            // 正式发布前可改为 error，避免长期记录用户访问目标。
-            "log": ["level": "info"],
+            "log": ["level": logLevel],
             "dns": [
                 "servers": [
                     [
@@ -38,34 +45,29 @@ public enum DbaoSingBoxConfigBuilder {
                         // 使用固定 IP 和 SNI，既不依赖本地 UDP 53，也不受旁路由 Fake-IP 影响。
                         "type": "https",
                         "tag": "bootstrap-dns",
-                        "server": "223.5.5.5",
+                        "server": options.bootstrapDNSServer,
                         "server_port": 443,
                         "path": "/dns-query",
-                        "tls": ["server_name": "dns.alidns.com"],
+                        "tls": ["server_name": options.bootstrapDNSTLSName],
                     ],
                     [
                         // 用户域名通过当前代理查询公共 DNS，避免本地网络污染和地域解析漂移。
                         // TCP DNS 不依赖 QUIC/UDP relay，兼容 Hysteria2、VMess、VLESS 等出站。
                         "type": "tcp",
                         "tag": "remote-dns",
-                        "server": "8.8.8.8",
+                        "server": options.remoteDNSServer,
                         "detour": "proxy",
                     ],
                 ],
                 "rules": dnsRules(for: routeWithResolver),
                 "final": "remote-dns",
-                // iOS 首阶段只下发 IPv4 TUN 地址，所以 DNS 也必须固定 IPv4。
-                // 否则 Safari/Google 可能拿到 AAAA 后优先走 IPv6，表现为 VPN 已连接但网页打不开。
-                "strategy": "ipv4_only",
+                "strategy": options.dnsStrategy,
                 "timeout": "6s",
             ],
             "inbounds": [[
                 "type": "tun",
                 "tag": "tun-in",
-                // iOS 真机首阶段先使用 IPv4-only TUN。部分设备在同时下发
-                // IPv6 ULA 地址与 fake DNS 时，setTunnelNetworkSettings 会长期停在
-                // connecting；先跑通系统 VPN，再按设备兼容性逐步恢复 IPv6。
-                "address": ["172.19.0.1/30"],
+                "address": tunAddresses,
                 // 使用保守 MTU，避免默认 4064 在不同 iOS/网络环境下影响 utun 初始化。
                 "mtu": 1500,
                 "auto_route": true,
@@ -79,6 +81,55 @@ public enum DbaoSingBoxConfigBuilder {
             ]],
         ]
         return try DbaoJSON.string(from: complete)
+    }
+
+    private struct ClientOptions {
+        let bootstrapDNSServer: String
+        let bootstrapDNSTLSName: String
+        let remoteDNSServer: String
+        let dnsStrategy: String
+        let enableIPv6: Bool
+        let enableSniff: Bool
+
+        init(_ raw: [String: Any]?) {
+            let values = raw ?? [:]
+            bootstrapDNSServer = Self.safeHost(values["bootstrap_dns_server"], fallback: "223.5.5.5")
+            bootstrapDNSTLSName = Self.safeHost(values["bootstrap_dns_tls_name"], fallback: "dns.alidns.com")
+            remoteDNSServer = Self.safeHost(values["remote_dns_server"], fallback: "8.8.8.8")
+            enableIPv6 = values["enable_ipv6"] as? Bool ?? false
+            enableSniff = values["enable_sniff"] as? Bool ?? true
+
+            let requestedStrategy = values["dns_strategy"] as? String ?? "ipv4_only"
+            let allowedStrategies = ["prefer_ipv4", "prefer_ipv6", "ipv4_only", "ipv6_only", "as_is"]
+            if allowedStrategies.contains(requestedStrategy), enableIPv6 || requestedStrategy != "ipv6_only" {
+                dnsStrategy = requestedStrategy
+            } else {
+                dnsStrategy = "ipv4_only"
+            }
+        }
+
+        private static func safeHost(_ value: Any?, fallback: String) -> String {
+            guard let candidate = value as? String else { return fallback }
+            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  trimmed.count <= 253,
+                  !trimmed.contains("/"),
+                  trimmed.unicodeScalars.allSatisfy({
+                      !CharacterSet.controlCharacters.contains($0)
+                  }) else {
+                return fallback
+            }
+            return trimmed
+        }
+    }
+
+    private static var logLevel: String {
+#if DEBUG
+        return "info"
+#else
+        // App Store 构建不记录用户访问目标，只保留核心错误。
+        return "error"
+#endif
     }
 
     private static func dnsRules(for route: [String: Any]) -> [[String: Any]] {
@@ -106,7 +157,7 @@ public enum DbaoSingBoxConfigBuilder {
         }
     }
 
-    private static func prependTunnelRouteActions(to rawRules: Any?) -> [[String: Any]] {
+    private static func prependTunnelRouteActions(to rawRules: Any?, enableSniff: Bool) -> [[String: Any]] {
         var rules = rawRules as? [[String: Any]] ?? []
         // iOS 会把系统 DNS 指向 TUN 内部地址。必须由 sing-box 显式接管这些 DNS 包，
         // 否则查询可能继续落到 Wi-Fi/旁路由 DNS，Google 等域名会受到 Fake-IP 或污染影响。
@@ -114,13 +165,15 @@ public enum DbaoSingBoxConfigBuilder {
             "protocol": "dns",
             "action": "hijack-dns",
         ], at: 0)
-        // sing-box 1.13+ 移除了 inbound 上的 sniff 等旧字段。
-        // 嗅探必须先于 DNS 劫持和后端分流规则执行，才能让后续规则获得真实域名。
-        rules.insert([
-            "inbound": "tun-in",
-            "action": "sniff",
-            "timeout": "1s",
-        ], at: 0)
+        if enableSniff {
+            // sing-box 1.13+ 移除了 inbound 上的 sniff 等旧字段。
+            // 嗅探必须先于 DNS 劫持和后端分流规则执行，才能让后续规则获得真实域名。
+            rules.insert([
+                "inbound": "tun-in",
+                "action": "sniff",
+                "timeout": "1s",
+            ], at: 0)
+        }
         return rules
     }
 

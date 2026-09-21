@@ -53,6 +53,8 @@ public final class DbaoVpnWebBridge: NSObject, WKScriptMessageHandler {
             manager.checkConnectivity(urlString: urlString) { self.reply(id: id, result: $0) }
         case "openConnectionLog":
             manager.openConnectionLog { self.reply(id: id, result: $0) }
+        case "clearConnectionLog":
+            manager.clearConnectionLog { self.reply(id: id, result: $0) }
         default:
             reply(id: id, result: .failure(DbaoTunnelError.tunnelStartFailed("NATIVE_ACTION_UNSUPPORTED")))
         }

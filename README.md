@@ -3,7 +3,7 @@
 这是启连加速器的公开客户端源码，包含 Flutter 界面、iOS 原生宿主、
 Network Extension Packet Tunnel 以及 sing-box Libbox 适配层。
 
-该仓库对应 iOS `1.0 (3)`。服务端账号、订阅管理、逻辑节点调度、
+该仓库对应 iOS `1.0 (5)`。服务端账号、订阅管理、逻辑节点调度、
 机场凭据和运营后台不在本仓库中，也不会被打包进客户端。
 
 ## 目录
@@ -48,6 +48,19 @@ API 地址可通过 Dart Define 覆盖：
 flutter build ios --dart-define=API_BASE_URL=https://example.com
 ```
 
+## 客户端能力
+
+- Flutter 本地界面，不加载远程页面作为主应用。
+- Swift Network Extension 与 Packet Tunnel 生命周期管理。
+- 逻辑线路选择、热切换、故障恢复和系统 VPN 状态同步。
+- 服务端版本化智能规则，支持私网、中国大陆域名与 IP 直连。
+- 后端下发的 DNS、IPv6 和域名识别选项会经过白名单校验后生效。
+- Packet Tunnel 实时上传、下载速率以及设备端连接诊断。
+- 账号、会员、公开用户 ID 和多设备管理。
+
+客户端只接收当前连接所需的短期配置，不包含机场订阅地址，也不能访问
+服务端的节点供应商凭据或运营数据。
+
 ## VPN Core
 
 本版本固定使用：
@@ -64,3 +77,5 @@ Simulator 的 `third_party/sing-box/Libbox.xcframework`。二进制框架不提�
 
 本仓库以 GNU GPL v3 或更高版本发布。第三方组件仍受各自许可证约束，
 详见 `THIRD_PARTY_NOTICES.md`。
+
+App Store 架构说明与审核回复草稿见 `docs/APP_STORE_REVIEW.md`。

@@ -12,7 +12,7 @@ settings:
     DEVELOPMENT_TEAM: 8VHFT94C93
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: 1.0
-    CURRENT_PROJECT_VERSION: 3
+    CURRENT_PROJECT_VERSION: 5
 targets:
   Lanbridge:
     type: application
@@ -36,6 +36,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Lanbridge/Info.plist
         CODE_SIGN_ENTITLEMENTS: Lanbridge/Lanbridge.entitlements
+        TARGETED_DEVICE_FAMILY: 1
   LanbridgeTunnel:
     type: app-extension
     platform: iOS
@@ -56,3 +57,4 @@ targets:
         CODE_SIGN_ENTITLEMENTS: LanbridgeTunnel/LanbridgeTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: 1

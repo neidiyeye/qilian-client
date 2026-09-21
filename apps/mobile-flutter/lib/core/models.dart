@@ -27,17 +27,20 @@ class UserProfile {
     required this.id,
     required this.username,
     required this.locale,
+    this.publicId = '',
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
     id: json['id'] as String? ?? '',
     username: json['username'] as String? ?? '',
     locale: json['locale'] as String? ?? 'zh-CN',
+    publicId: json['public_id'] as String? ?? '',
   );
 
   final String id;
   final String username;
   final String locale;
+  final String publicId;
 }
 
 /// 会员有效期与设备限制均由服务端判定，客户端只负责展示。
@@ -219,6 +222,8 @@ class TrafficSnapshot {
     required this.uploadBytes,
     required this.downloadBytes,
     this.available = false,
+    this.uploadBytesPerSecond = 0,
+    this.downloadBytesPerSecond = 0,
   });
 
   factory TrafficSnapshot.fromJson(Map<dynamic, dynamic> json) =>
@@ -232,4 +237,107 @@ class TrafficSnapshot {
   final int uploadBytes;
   final int downloadBytes;
   final bool available;
+  final int uploadBytesPerSecond;
+  final int downloadBytesPerSecond;
+
+  TrafficSnapshot withRatesFrom(TrafficSnapshot previous, Duration elapsed) {
+    if (elapsed.inMilliseconds <= 0 ||
+        uploadBytes < previous.uploadBytes ||
+        downloadBytes < previous.downloadBytes) {
+      return TrafficSnapshot(
+        uploadBytes: uploadBytes,
+        downloadBytes: downloadBytes,
+        available: available,
+      );
+    }
+    final seconds = elapsed.inMilliseconds / 1000;
+    return TrafficSnapshot(
+      uploadBytes: uploadBytes,
+      downloadBytes: downloadBytes,
+      available: available,
+      uploadBytesPerSecond: ((uploadBytes - previous.uploadBytes) / seconds)
+          .round(),
+      downloadBytesPerSecond:
+          ((downloadBytes - previous.downloadBytes) / seconds).round(),
+    );
+  }
+}
+
+/// 只保留用户可理解的路由策略摘要，不包含节点地址、凭据或订阅信息。
+class RoutingPolicySummary {
+  const RoutingPolicySummary({
+    required this.revision,
+    required this.directPrivateNetworks,
+    required this.cnDomainRules,
+    required this.cnIpRules,
+    required this.dnsStrategy,
+    required this.enableIPv6,
+    required this.enableSniff,
+    required this.customRouteCount,
+  });
+
+  factory RoutingPolicySummary.fromConfig(Map<String, dynamic> config) {
+    final options = Map<String, dynamic>.from(
+      config['client_options'] as Map? ?? const {},
+    );
+    final route = Map<String, dynamic>.from(
+      config['route'] as Map? ?? const {},
+    );
+    final ruleSets = (route['rule_set'] as List? ?? const [])
+        .whereType<Map>()
+        .map(Map<String, dynamic>.from)
+        .toList(growable: false);
+    final rules = (route['rules'] as List? ?? const [])
+        .whereType<Map>()
+        .map(Map<String, dynamic>.from)
+        .toList(growable: false);
+    return RoutingPolicySummary(
+      revision: (options['policy_revision'] as num?)?.toInt() ?? 0,
+      directPrivateNetworks: rules.any(
+        (rule) => rule['ip_is_private'] == true && rule['outbound'] == 'direct',
+      ),
+      cnDomainRules: ruleSets.any((item) => item['tag'] == 'geosite-cn'),
+      cnIpRules: ruleSets.any((item) => item['tag'] == 'geoip-cn'),
+      dnsStrategy: options['dns_strategy'] as String? ?? 'ipv4_only',
+      enableIPv6: options['enable_ipv6'] == true,
+      enableSniff: options['enable_sniff'] != false,
+      customRouteCount: rules
+          .where(
+            (rule) => (rule['outbound'] as String? ?? '').startsWith('route-'),
+          )
+          .length,
+    );
+  }
+
+  factory RoutingPolicySummary.fromJson(Map<String, dynamic> json) =>
+      RoutingPolicySummary(
+        revision: (json['revision'] as num?)?.toInt() ?? 0,
+        directPrivateNetworks: json['direct_private_networks'] == true,
+        cnDomainRules: json['cn_domain_rules'] == true,
+        cnIpRules: json['cn_ip_rules'] == true,
+        dnsStrategy: json['dns_strategy'] as String? ?? 'ipv4_only',
+        enableIPv6: json['enable_ipv6'] == true,
+        enableSniff: json['enable_sniff'] != false,
+        customRouteCount: (json['custom_route_count'] as num?)?.toInt() ?? 0,
+      );
+
+  final int revision;
+  final bool directPrivateNetworks;
+  final bool cnDomainRules;
+  final bool cnIpRules;
+  final String dnsStrategy;
+  final bool enableIPv6;
+  final bool enableSniff;
+  final int customRouteCount;
+
+  Map<String, dynamic> toJson() => {
+    'revision': revision,
+    'direct_private_networks': directPrivateNetworks,
+    'cn_domain_rules': cnDomainRules,
+    'cn_ip_rules': cnIpRules,
+    'dns_strategy': dnsStrategy,
+    'enable_ipv6': enableIPv6,
+    'enable_sniff': enableSniff,
+    'custom_route_count': customRouteCount,
+  };
 }

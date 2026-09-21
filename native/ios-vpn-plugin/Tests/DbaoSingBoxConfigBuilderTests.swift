@@ -69,6 +69,69 @@ final class DbaoSingBoxConfigBuilderTests: XCTestCase {
         try checkWithSingBoxIfConfigured(content)
     }
 
+    func testAppliesWhitelistedClientOptions() throws {
+        let payload: [String: Any] = [
+            "outbounds": [
+                ["type": "direct", "tag": "proxy"],
+                ["type": "direct", "tag": "direct"],
+            ],
+            "route": ["final": "proxy", "rules": []],
+            "client_options": [
+                "bootstrap_dns_server": "1.1.1.1",
+                "bootstrap_dns_tls_name": "cloudflare-dns.com",
+                "remote_dns_server": "9.9.9.9",
+                "dns_strategy": "prefer_ipv6",
+                "enable_ipv6": true,
+                "enable_sniff": false,
+            ],
+        ]
+
+        let content = try DbaoSingBoxConfigBuilder.build(
+            from: payload,
+            cachePath: "/tmp/qilian-client-options.db"
+        )
+        let data = try XCTUnwrap(content.data(using: .utf8))
+        let config = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let dns = try XCTUnwrap(config["dns"] as? [String: Any])
+        let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
+        XCTAssertEqual(servers[0]["server"] as? String, "1.1.1.1")
+        XCTAssertEqual((servers[0]["tls"] as? [String: Any])?["server_name"] as? String, "cloudflare-dns.com")
+        XCTAssertEqual(servers[1]["server"] as? String, "9.9.9.9")
+        XCTAssertEqual(dns["strategy"] as? String, "prefer_ipv6")
+
+        let inbounds = try XCTUnwrap(config["inbounds"] as? [[String: Any]])
+        XCTAssertEqual(inbounds[0]["address"] as? [String], ["172.19.0.1/30", "fdfe:dcba:9876::1/126"])
+        let route = try XCTUnwrap(config["route"] as? [String: Any])
+        let rules = try XCTUnwrap(route["rules"] as? [[String: Any]])
+        XCTAssertFalse(rules.contains(where: { ($0["action"] as? String) == "sniff" }))
+        XCTAssertEqual(rules.first?["action"] as? String, "hijack-dns")
+    }
+
+    func testRejectsUnsafeClientOptionValues() throws {
+        let payload: [String: Any] = [
+            "outbounds": [
+                ["type": "direct", "tag": "proxy"],
+                ["type": "direct", "tag": "direct"],
+            ],
+            "route": ["final": "proxy", "rules": []],
+            "client_options": [
+                "bootstrap_dns_server": "https://not-a-host.example/dns-query",
+                "dns_strategy": "ipv6_only",
+                "enable_ipv6": false,
+            ],
+        ]
+        let content = try DbaoSingBoxConfigBuilder.build(
+            from: payload,
+            cachePath: "/tmp/qilian-client-options-fallback.db"
+        )
+        let data = try XCTUnwrap(content.data(using: .utf8))
+        let config = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let dns = try XCTUnwrap(config["dns"] as? [String: Any])
+        let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
+        XCTAssertEqual(servers[0]["server"] as? String, "223.5.5.5")
+        XCTAssertEqual(dns["strategy"] as? String, "ipv4_only")
+    }
+
     private func checkWithSingBoxIfConfigured(_ content: String) throws {
         guard let binary = ProcessInfo.processInfo.environment["SING_BOX_BIN"], !binary.isEmpty else {
             return

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +32,8 @@ final class AppController extends ChangeNotifier {
   UserProfile? user;
   Membership? membership;
   List<BoundDevice> devices = const [];
+  String? currentDeviceId;
+  String? unbindingDeviceId;
   List<VpnNode> nodes = const [];
   String? selectedNodeId;
   ConnectionMode mode = ConnectionMode.rule;
@@ -39,6 +42,7 @@ final class AppController extends ChangeNotifier {
     uploadBytes: 0,
     downloadBytes: 0,
   );
+  RoutingPolicySummary? routingPolicy;
   String? message;
   int checkingIndex = 0;
   int checkingTotal = 0;
@@ -56,9 +60,12 @@ final class AppController extends ChangeNotifier {
   bool _foregroundSyncing = false;
   bool _appInForeground = true;
   int _disconnectedPolls = 0;
+  TrafficSnapshot? _previousTrafficSample;
+  DateTime? _previousTrafficSampleAt;
   final Map<String, DateTime> _localNodeCheckTimes = {};
 
   static const Duration nodeCheckCacheDuration = Duration(minutes: 10);
+  static const String _routingPolicyPreference = 'qilian_routing_policy';
 
   bool get isEnglish => localeCode == 'en-US';
 
@@ -71,6 +78,10 @@ final class AppController extends ChangeNotifier {
 
   bool get membershipActive =>
       membership != null && membership!.expiresAt.isAfter(DateTime.now());
+
+  /// 使用登录时提交给服务端的安装标识判断本机，不能依赖可能重复的设备名称。
+  bool isCurrentDevice(BoundDevice device) =>
+      currentDeviceId != null && device.deviceId == currentDeviceId;
 
   bool get canConnect =>
       !busy &&
@@ -94,6 +105,16 @@ final class AppController extends ChangeNotifier {
     localeCode = preferences.getString('qilian_locale') == 'en-US'
         ? 'en-US'
         : 'zh-CN';
+    final savedPolicy = preferences.getString(_routingPolicyPreference);
+    if (savedPolicy != null) {
+      try {
+        routingPolicy = RoutingPolicySummary.fromJson(
+          Map<String, dynamic>.from(jsonDecode(savedPolicy) as Map),
+        );
+      } catch (_) {
+        await preferences.remove(_routingPolicyPreference);
+      }
+    }
     try {
       vpnStatus = await _vpn.getStatus();
     } catch (error) {
@@ -321,6 +342,7 @@ final class AppController extends ChangeNotifier {
       pendingLease = await _api.connect(node.id, mode);
       await _vpn.connect(_nativeConfiguration(pendingLease));
       _lease = pendingLease;
+      unawaited(_rememberRoutingPolicy(pendingLease));
       vpnStatus = VpnStatus.connected;
       connectivityAvailable = null;
       _disconnectedPolls = 0;
@@ -377,6 +399,7 @@ final class AppController extends ChangeNotifier {
       verifyingConnectivity = false;
       connectivityAvailable = null;
       traffic = const TrafficSnapshot(uploadBytes: 0, downloadBytes: 0);
+      _resetTrafficSamples();
       vpnStatus = VpnStatus.disconnected;
       busy = false;
       _userDisconnecting = false;
@@ -517,16 +540,29 @@ final class AppController extends ChangeNotifier {
   }
 
   Future<void> unbindDevice(BoundDevice device) async {
+    if (unbindingDeviceId != null) return;
+    unbindingDeviceId = device.id;
+    message = null;
+    notifyListeners();
     try {
       await _api.unbindDevice(device.id);
-      if (device.deviceId == await _api.installationId()) {
+      currentDeviceId ??= await _api.installationId();
+      if (isCurrentDevice(device)) {
         await logout();
       } else {
+        // 请求成功后立即移除，避免等待第二次网络请求才产生视觉反馈。
+        devices = devices
+            .where((candidate) => candidate.id != device.id)
+            .toList(growable: false);
+        notifyListeners();
         devices = await _api.getDevices();
         notifyListeners();
       }
     } catch (error) {
       message = _errorMessage(error);
+      notifyListeners();
+    } finally {
+      unbindingDeviceId = null;
       notifyListeners();
     }
   }
@@ -544,6 +580,18 @@ final class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearConnectionLog() async {
+    try {
+      await _vpn.clearConnectionLog();
+      message = AppText.fromCode(
+        localeCode,
+      ).pick('连接日志已清除', 'Connection logs cleared.');
+    } catch (error) {
+      message = _errorMessage(error);
+    }
+    notifyListeners();
+  }
+
   void clearMessage() {
     message = null;
     notifyListeners();
@@ -554,12 +602,14 @@ final class AppController extends ChangeNotifier {
       _api.getProfile(),
       _api.getNodes(),
       _api.getDevices(),
+      _api.installationId(),
     ]);
     final profile = results[0] as (UserProfile, Membership?);
     user = profile.$1;
     membership = profile.$2;
     nodes = results[1] as List<VpnNode>;
     devices = results[2] as List<BoundDevice>;
+    currentDeviceId = results[3] as String;
     final preferences = await SharedPreferences.getInstance();
     final saved = preferences.getString('huolian_selected_node');
     if (saved != null && nodes.any((node) => node.id == saved)) {
@@ -594,9 +644,10 @@ final class AppController extends ChangeNotifier {
     mode = snapshot.mode;
     final restoredLease = snapshot.toLease();
     try {
-      traffic = await _vpn.getTrafficStats();
+      _applyTrafficSample(await _vpn.getTrafficStats());
     } catch (_) {
       traffic = const TrafficSnapshot(uploadBytes: 0, downloadBytes: 0);
+      _resetTrafficSamples();
     }
 
     _lease = restoredLease;
@@ -625,6 +676,7 @@ final class AppController extends ChangeNotifier {
     _lease = null;
     vpnStatus = VpnStatus.disconnected;
     traffic = const TrafficSnapshot(uploadBytes: 0, downloadBytes: 0);
+    _resetTrafficSamples();
     try {
       await _forgetActiveConnection();
     } catch (_) {}
@@ -720,6 +772,7 @@ final class AppController extends ChangeNotifier {
       replacement = await _api.connect(nodeId, mode);
       await _vpn.reloadConfiguration(_nativeConfiguration(replacement));
       _lease = replacement;
+      unawaited(_rememberRoutingPolicy(replacement));
       vpnStatus = VpnStatus.connected;
       _disconnectedPolls = 0;
       _startConnectionTimers(replacement.heartbeatSeconds);
@@ -743,6 +796,7 @@ final class AppController extends ChangeNotifier {
           final rollback = await _api.connect(previousNodeId, mode);
           await _vpn.reloadConfiguration(_nativeConfiguration(rollback));
           _lease = rollback;
+          unawaited(_rememberRoutingPolicy(rollback));
           vpnStatus = VpnStatus.connected;
           _startConnectionTimers(rollback.heartbeatSeconds);
           unawaited(_rememberActiveConnection(rollback, previousNodeId));
@@ -797,7 +851,7 @@ final class AppController extends ChangeNotifier {
     _trafficTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
       if (vpnStatus != VpnStatus.connected) return;
       try {
-        traffic = await _vpn.getTrafficStats();
+        _applyTrafficSample(await _vpn.getTrafficStats());
         notifyListeners();
       } catch (_) {}
     });
@@ -858,6 +912,7 @@ final class AppController extends ChangeNotifier {
         await _vpn.connect(_nativeConfiguration(replacement));
       }
       _lease = replacement;
+      unawaited(_rememberRoutingPolicy(replacement));
       vpnStatus = VpnStatus.connected;
       _disconnectedPolls = 0;
       _startConnectionTimers(replacement.heartbeatSeconds);
@@ -928,6 +983,7 @@ final class AppController extends ChangeNotifier {
       final replacement = await _api.failover(lease.sessionId, 'tunnel_exited');
       await _vpn.connect(_nativeConfiguration(replacement));
       _lease = replacement;
+      unawaited(_rememberRoutingPolicy(replacement));
       vpnStatus = VpnStatus.connected;
       connectivityAvailable = null;
       _disconnectedPolls = 0;
@@ -955,6 +1011,34 @@ final class AppController extends ChangeNotifier {
     _trafficTimer?.cancel();
     _heartbeatTimer = null;
     _trafficTimer = null;
+  }
+
+  void _applyTrafficSample(TrafficSnapshot sample, {DateTime? sampledAt}) {
+    final now = sampledAt ?? DateTime.now();
+    final previous = _previousTrafficSample;
+    final previousAt = _previousTrafficSampleAt;
+    traffic = previous == null || previousAt == null
+        ? sample
+        : sample.withRatesFrom(previous, now.difference(previousAt));
+    _previousTrafficSample = sample;
+    _previousTrafficSampleAt = now;
+  }
+
+  void _resetTrafficSamples() {
+    _previousTrafficSample = null;
+    _previousTrafficSampleAt = null;
+  }
+
+  Future<void> _rememberRoutingPolicy(ConnectionLease lease) async {
+    if (lease.config.isEmpty) return;
+    final summary = RoutingPolicySummary.fromConfig(lease.config);
+    routingPolicy = summary;
+    notifyListeners();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _routingPolicyPreference,
+      jsonEncode(summary.toJson()),
+    );
   }
 
   /// 会话级令牌只交给 Packet Tunnel Extension，主 App 的登录令牌不会写入共享配置。

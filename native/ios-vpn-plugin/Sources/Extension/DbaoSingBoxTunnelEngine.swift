@@ -27,7 +27,11 @@ final class DbaoSingBoxTunnelEngine: DbaoTunnelEngine {
         setupOptions.workingPath = paths.working.path
         setupOptions.tempPath = paths.temp.path
         setupOptions.logMaxLines = 3000
+#if DEBUG
         setupOptions.debug = true
+#else
+        setupOptions.debug = false
+#endif
         setupOptions.crashReportSource = "LanbridgePacketTunnel"
         setupOptions.appVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         setupOptions.appMarketingVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
@@ -314,7 +318,7 @@ private final class DbaoSingBoxPlatformInterface: NSObject, LibboxPlatformInterf
             options.isHTTPProxyEnabled() ? "yes" : "no"
         )
         debugStore.appendDebugLog("[Platform] applying tunnel settings, mtu=\(options.getMTU()), dns=\(dnsCount), dnsServers=\(dnsServers.joined(separator: ",")), ipv4Address=\(ipv4Addresses.map(\.address).joined(separator: ",")), ipv4Include=\(ipv4IncludedCount), ipv4Default=\(hasIPv4DefaultRoute), ipv4Exclude=\(ipv4ExcludedCount), ipv6Address=\(ipv6Addresses.map(\.address).joined(separator: ",")), ipv6Include=\(ipv6IncludedCount), ipv6Exclude=\(ipv6ExcludedCount), httpProxy=\(options.isHTTPProxyEnabled())")
-        // Hiddify 的常规实现会同步等待 setTunnelNetworkSettings，但 iOS 26.6.1 真机验证表明：
+        // 旧实现会同步等待 setTunnelNetworkSettings，但 iOS 26.6.1 真机验证表明：
         // 该回调可能要等 openTun 返回后才恢复，形成循环等待并让系统长期停在 connecting。
         // 因此先提交设置，再等待系统暴露 packetFlow fd；这仍然使用系统创建的真实 TUN，
         // 不会提前向主 App 报告 connected。设置错误会写入共享日志并由系统终止扩展。

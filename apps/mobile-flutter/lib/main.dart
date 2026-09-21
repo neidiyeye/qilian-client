@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:country_flags/country_flags.dart' as country_flags;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
@@ -221,6 +223,7 @@ class BrandMark extends StatelessWidget {
     borderRadius: BorderRadius.circular(size * 0.2),
     child: Image.asset(
       'assets/images/qilian-logo.png',
+      package: _sharedAssetPackage,
       width: size,
       height: size,
       fit: BoxFit.cover,
@@ -724,61 +727,109 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     final text = AppText.of(context);
+    final destinations = [
+      NavigationDestination(
+        icon: const Icon(LucideIcons.power),
+        selectedIcon: const Icon(LucideIcons.power),
+        label: text.connect,
+      ),
+      NavigationDestination(
+        icon: const Icon(LucideIcons.server),
+        selectedIcon: const Icon(LucideIcons.serverCog),
+        label: text.nodes,
+      ),
+      NavigationDestination(
+        icon: const Icon(LucideIcons.circleUserRound),
+        selectedIcon: const Icon(LucideIcons.userRoundCheck),
+        label: text.mine,
+      ),
+    ];
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            if (controller.message != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: InlineNotice(
-                  message: controller.message!,
-                  onClose: controller.clearMessage,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 760;
+          final content = _buildContent(controller);
+          if (!desktop) return SafeArea(bottom: false, child: content);
+
+          return SafeArea(
+            child: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: index,
+                  onDestinationSelected: (value) =>
+                      setState(() => index = value),
+                  labelType: NavigationRailLabelType.all,
+                  leading: const Padding(
+                    padding: EdgeInsets.only(top: 18, bottom: 22),
+                    child: BrandMark(size: 42),
+                  ),
+                  destinations: destinations
+                      .map(
+                        (item) => NavigationRailDestination(
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          label: Text(item.label),
+                        ),
+                      )
+                      .toList(growable: false),
                 ),
-              ),
-            Expanded(
-              child: IndexedStack(
-                index: index,
-                children: [
-                  ConnectScreen(
-                    controller: controller,
-                    onChooseNode: () => setState(() => index = 1),
+                VerticalDivider(
+                  width: 1,
+                  color: Theme.of(context).dividerColor,
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 980),
+                      child: content,
+                    ),
                   ),
-                  NodesScreen(
-                    controller: controller,
-                    onNodeSelected: () => setState(() => index = 0),
-                  ),
-                  AccountScreen(controller: controller),
-                ],
-              ),
+                ),
+              ],
             ),
+          );
+        },
+      ),
+      bottomNavigationBar: MediaQuery.sizeOf(context).width < 760
+          ? NavigationBar(
+              selectedIndex: index,
+              onDestinationSelected: (value) => setState(() => index = value),
+              destinations: destinations,
+            )
+          : null,
+    );
+  }
+
+  /// 页面栈始终保留状态，切换节点或账户页时不会重建连接页动画与滚动位置。
+  Widget _buildContent(AppController controller) => Column(
+    children: [
+      if (controller.message != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: InlineNotice(
+            message: controller.message!,
+            onClose: controller.clearMessage,
+          ),
+        ),
+      Expanded(
+        child: IndexedStack(
+          index: index,
+          children: [
+            ConnectScreen(
+              controller: controller,
+              onChooseNode: () => setState(() => index = 1),
+            ),
+            NodesScreen(
+              controller: controller,
+              onNodeSelected: () => setState(() => index = 0),
+            ),
+            AccountScreen(controller: controller),
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(LucideIcons.power),
-            selectedIcon: const Icon(LucideIcons.power),
-            label: text.connect,
-          ),
-          NavigationDestination(
-            icon: const Icon(LucideIcons.server),
-            selectedIcon: const Icon(LucideIcons.serverCog),
-            label: text.nodes,
-          ),
-          NavigationDestination(
-            icon: const Icon(LucideIcons.circleUserRound),
-            selectedIcon: const Icon(LucideIcons.userRoundCheck),
-            label: text.mine,
-          ),
-        ],
-      ),
-    );
-  }
+    ],
+  );
 }
 
 class ConnectScreen extends StatelessWidget {
@@ -794,6 +845,7 @@ class ConnectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = AppText.of(context);
+    final desktop = MediaQuery.sizeOf(context).width >= 760;
     final connected = controller.vpnStatus == VpnStatus.connected;
     final node = controller.selectedNode;
     final canTapPower =
@@ -815,7 +867,8 @@ class ConnectScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const BrandLockup(compact: true),
+                  // 桌面端左侧导航已经展示品牌，内容区不再重复占用首行空间。
+                  if (!desktop) const BrandLockup(compact: true),
                   const Spacer(),
                   _StatusPill(
                     status: controller.vpnStatus,
@@ -839,13 +892,13 @@ class ConnectScreen extends StatelessWidget {
                   children: [
                     _TrafficValue(
                       icon: LucideIcons.arrowUpToLine,
-                      bytes: controller.traffic.uploadBytes,
+                      bytes: controller.traffic.uploadBytesPerSecond,
                       available: controller.traffic.available,
                     ),
                     const SizedBox(width: 30),
                     _TrafficValue(
                       icon: LucideIcons.arrowDownToLine,
-                      bytes: controller.traffic.downloadBytes,
+                      bytes: controller.traffic.downloadBytesPerSecond,
                       available: controller.traffic.available,
                     ),
                   ],
@@ -957,6 +1010,7 @@ class _WorldMapBackdrop extends StatelessWidget {
         opacity: dark ? 0.10 : 0.065,
         child: Image.asset(
           'assets/images/world-map-soft.png',
+          package: _sharedAssetPackage,
           fit: BoxFit.contain,
           color: dark ? const Color(0xFFDCE8E2) : const Color(0xFF25332E),
           colorBlendMode: BlendMode.srcIn,
@@ -1285,7 +1339,19 @@ class _NodesScreenState extends State<NodesScreen> {
     }
     return Column(
       children: [
-        PageHeader(title: text.nodes),
+        PageHeader(
+          title: text.nodes,
+          trailing: IconButton(
+            onPressed: controller.busy ? null : controller.refresh,
+            tooltip: text.refresh,
+            icon: controller.busy
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(LucideIcons.refreshCw),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
           child: TextField(
@@ -1484,21 +1550,62 @@ class AccountScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        controller.user?.username ?? '',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        text.memberAccount,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          controller.user?.username ?? '',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        if ((controller.user?.publicId ?? '').isNotEmpty)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => _copyPublicId(context),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      '${text.userId}  ${controller.user!.publicId}',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Icon(
+                                    LucideIcons.copy,
+                                    size: 14,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            text.memberAccount,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1535,6 +1642,12 @@ class AccountScreen extends StatelessWidget {
                     ) ...[
                       _DeviceRow(
                         device: controller.devices[index],
+                        isCurrent: controller.isCurrentDevice(
+                          controller.devices[index],
+                        ),
+                        busy:
+                            controller.unbindingDeviceId ==
+                            controller.devices[index].id,
                         onUnbind: () =>
                             _confirmUnbind(context, controller.devices[index]),
                       ),
@@ -1596,9 +1709,24 @@ class AccountScreen extends StatelessWidget {
                 ),
               ),
               _SettingRow(
+                icon: LucideIcons.route,
+                title: text.smartRules,
+                onTap: () => _showRoutingPolicy(context),
+              ),
+              Divider(
+                height: 1,
+                indent: 52,
+                color: Theme.of(context).dividerColor,
+              ),
+              _SettingRow(
                 icon: LucideIcons.fileText,
                 title: text.connectionLog,
                 onTap: controller.openConnectionLog,
+                trailing: IconButton(
+                  onPressed: () => _confirmClearLog(context),
+                  tooltip: text.clearConnectionLog,
+                  icon: const Icon(LucideIcons.trash2, size: 18),
+                ),
               ),
               Divider(
                 height: 1,
@@ -1659,6 +1787,133 @@ class AccountScreen extends StatelessWidget {
     );
     if (confirmed == true) await controller.unbindDevice(device);
   }
+
+  Future<void> _copyPublicId(BuildContext context) async {
+    final publicId = controller.user?.publicId ?? '';
+    if (publicId.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: publicId));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(AppText.of(context).copied)));
+  }
+
+  Future<void> _confirmClearLog(BuildContext context) async {
+    final text = AppText.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(text.clearConnectionLog),
+        content: Text(text.clearConnectionLogPrompt),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(text.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(text.clear),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await controller.clearConnectionLog();
+  }
+
+  void _showRoutingPolicy(BuildContext context) {
+    final text = AppText.of(context);
+    final policy = controller.routingPolicy;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                text.smartRules,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                text.smartRulesSubtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (policy == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Text(text.policyPending),
+                )
+              else ...[
+                _PolicyRow(
+                  label: text.policyRevision,
+                  value: 'v${policy.revision}',
+                ),
+                _PolicyRow(
+                  label: text.privateNetworkDirect,
+                  value: policy.directPrivateNetworks
+                      ? text.direct
+                      : text.disabled,
+                ),
+                _PolicyRow(
+                  label: text.chinaDomainDirect,
+                  value: policy.cnDomainRules ? text.direct : text.disabled,
+                ),
+                _PolicyRow(
+                  label: text.chinaIpDirect,
+                  value: policy.cnIpRules ? text.direct : text.disabled,
+                ),
+                _PolicyRow(
+                  label: text.domainRecognition,
+                  value: policy.enableSniff ? text.enabled : text.disabled,
+                ),
+                _PolicyRow(
+                  label: text.ipv6Routing,
+                  value: policy.enableIPv6 ? text.enabled : text.disabled,
+                ),
+                _PolicyRow(label: text.dnsStrategy, value: policy.dnsStrategy),
+                _PolicyRow(
+                  label: text.customRules,
+                  value: text.customRuleCount(policy.customRouteCount),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PolicyRow extends StatelessWidget {
+  const _PolicyRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 16),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class PageHeader extends StatelessWidget {
@@ -1729,17 +1984,34 @@ class RegionFlag extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      border: Border.all(color: Theme.of(context).dividerColor),
-    ),
-    child: Text(_flag(region), style: TextStyle(fontSize: size * 0.53)),
-  );
+  Widget build(BuildContext context) {
+    final normalizedRegion = region.toUpperCase();
+    final countryCode = _countryFlagCode(normalizedRegion);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: countryCode == null
+          ? Icon(
+              LucideIcons.globe2,
+              size: size * 0.5,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            )
+          : country_flags.CountryFlag.fromCountryCode(
+              countryCode,
+              theme: country_flags.ImageTheme(
+                width: size * 0.76,
+                height: size * 0.76,
+                shape: const country_flags.Circle(),
+              ),
+            ),
+    );
+  }
 }
 
 class _StatusPill extends StatelessWidget {
@@ -1806,7 +2078,7 @@ class _TrafficValue extends StatelessWidget {
       ),
       const SizedBox(width: 6),
       Text(
-        available ? _bytes(bytes) : '--',
+        available ? _rate(bytes) : '--',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -1874,9 +2146,16 @@ class _AccountStat extends StatelessWidget {
 }
 
 class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({required this.device, required this.onUnbind});
+  const _DeviceRow({
+    required this.device,
+    required this.isCurrent,
+    required this.busy,
+    required this.onUnbind,
+  });
 
   final BoundDevice device;
+  final bool isCurrent;
+  final bool busy;
   final VoidCallback onUnbind;
 
   @override
@@ -1903,19 +2182,48 @@ class _DeviceRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              Text(
-                device.platform,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  Text(
+                    device.platform,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (isCurrent) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      AppText.of(context).currentDevice,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
         ),
-        TextButton(
-          onPressed: onUnbind,
-          child: Text(AppText.of(context).unbind),
-        ),
+        if (busy)
+          const SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          TextButton(
+            onPressed: onUnbind,
+            child: Text(AppText.of(context).unbind),
+          ),
         const SizedBox(width: 6),
       ],
     ),
@@ -1962,25 +2270,27 @@ class _SettingRow extends StatelessWidget {
   );
 }
 
-String _flag(String region) {
-  const flags = {
-    'HK': '🇭🇰',
-    'JP': '🇯🇵',
-    'SG': '🇸🇬',
-    'TW': '🇹🇼',
-    'KR': '🇰🇷',
-    'MY': '🇲🇾',
-    'US': '🇺🇸',
-    'CA': '🇨🇦',
-    'UK': '🇬🇧',
-    'DE': '🇩🇪',
-    'IN': '🇮🇳',
-    'FR': '🇫🇷',
-    'AU': '🇦🇺',
-    'NL': '🇳🇱',
-  };
-  return flags[region] ?? '🌐';
-}
+/// 后端沿用 `UK` 展示代码；旗帜资源使用 ISO 3166 的 `GB`。
+String? _countryFlagCode(String region) => const {
+  'HK': 'HK',
+  'JP': 'JP',
+  'SG': 'SG',
+  'TW': 'TW',
+  'KR': 'KR',
+  'MY': 'MY',
+  'US': 'US',
+  'CA': 'CA',
+  'UK': 'GB',
+  'DE': 'DE',
+  'IN': 'IN',
+  'FR': 'FR',
+  'AU': 'AU',
+  'NL': 'NL',
+}[region];
+
+/// macOS 宿主以依赖包方式复用页面；iOS/Android 则把 Flutter 模块作为主包构建。
+String? get _sharedAssetPackage =>
+    defaultTargetPlatform == TargetPlatform.macOS ? 'huolian_app' : null;
 
 String _nodeName(BuildContext context, VpnNode node) {
   final text = AppText.of(context);
@@ -1998,3 +2308,5 @@ String _bytes(int value) {
   }
   return '${(value / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
 }
+
+String _rate(int value) => '${_bytes(value)}/s';

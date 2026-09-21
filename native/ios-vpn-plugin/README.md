@@ -46,7 +46,7 @@ App Group: group.com.ssyoo.vpn
 
 ## Core 状态
 
-真机 target 链接：
+当前真机 target 已链接：
 
 ```text
 third_party/sing-box/Libbox.xcframework
@@ -54,19 +54,15 @@ third_party/sing-box/Libbox.xcframework
 
 `PacketTunnelProvider.makeEngine()` 当前返回真实的 `DbaoSingBoxTunnelEngine`。Core 负责 TUN、DNS、协议连接、流量统计和出口探测，不能用模拟成功替代。
 
-框架由仓库根目录的 `scripts/build-libbox.sh` 从固定的 sing-box
-`v1.14.0` 公开源码生成，不提交预编译二进制。
-
 ## 构建
 
 ```bash
 ./apps/ios-app/scripts/setup-flutter.sh
-open apps/ios-app/LanbridgeIOS.xcworkspace
+./apps/ios-app/scripts/run-on-device.sh
 ```
 
 不要单独使用 Swift Package 构建判断真机可用性；必须由包含主 App、Extension、Entitlements 和 Libbox 的 Xcode workspace 验证。
 
 ## 许可证
 
-客户端和对应的 sing-box 源码按照 GNU GPL v3 或更高版本公开。
-原生适配层通过 `DbaoTunnelEngine` 与具体 Core 隔离。
+当前 sing-box/Libbox 用于验证产品和协议稳定性。正式分发前必须完成 GPLv3 审查：选择履行对应源码义务，或换成允许公司闭源分发的 Core。原生适配层已经为替换 Core 保留边界。

@@ -67,6 +67,8 @@ final class FireLinkVpnPlugin: NSObject, FlutterPlugin {
             manager.checkConnectivity(urlString: url) { self.finish($0, result: result) }
         case "openConnectionLog":
             manager.openConnectionLog { self.finish($0, result: result) }
+        case "clearConnectionLog":
+            manager.clearConnectionLog { self.finish($0, result: result) }
         default:
             result(FlutterMethodNotImplemented)
         }

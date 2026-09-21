@@ -35,10 +35,25 @@ open apps/ios-app/LanbridgeIOS.xcworkspace
 
 ## 真机安装
 
-在 Xcode 中选择 `Lanbridge` Scheme 和已加入开发者账号的 iPhone 后运行。
-首次连接时，iOS 会要求用户授权添加系统 VPN 配置。
+```bash
+./apps/ios-app/scripts/run-on-device.sh
+```
 
-## Apple 标识示例
+脚本固定使用 iPhone SE：
+
+```text
+UDID: 00008030-000E40EC1183802E
+```
+
+iPhone 15 Pro Max 已被脚本排除，除非用户明确要求，否则不能用于测试。Ad Hoc 测试包使用：
+
+脚本构建 `Profile` 包，因为 Flutter `Debug` 包不能脱离 Flutter tooling 或 Xcode 独立启动；Profile 仍保留原生 VPN 的 `NSLog` 调试日志。
+
+```bash
+./apps/ios-app/scripts/run-ad-hoc-on-device.sh
+```
+
+## Apple 标识
 
 ```text
 Team ID: 8VHFT94C93
@@ -47,8 +62,7 @@ Tunnel Bundle ID: com.ssyoo.vpn.network-extension
 App Group ID: group.com.ssyoo.vpn
 ```
 
-发布自己的构建时，请替换上述标识。主 App 与 Extension 都必须启用
-`Network Extensions / Packet Tunnel`，并关联同一个 App Group。
+主 App 与 Extension 都必须启用 `Network Extensions / Packet Tunnel`，并关联同一个 App Group。第一次连接时 iOS 会显示系统 VPN 授权弹窗。
 
 ## 验证
 

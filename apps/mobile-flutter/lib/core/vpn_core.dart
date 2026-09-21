@@ -22,6 +22,8 @@ abstract interface class VpnCore {
   Future<void> checkConnectivity(String url);
 
   Future<void> openConnectionLog();
+
+  Future<void> clearConnectionLog();
 }
 
 /// MethodChannel 只传平台无关动作，具体 VPN Core 被封装在 Packet Tunnel 内。
@@ -76,4 +78,8 @@ final class NativeVpnCore implements VpnCore {
   @override
   Future<void> openConnectionLog() =>
       _channel.invokeMethod<void>('openConnectionLog');
+
+  @override
+  Future<void> clearConnectionLog() =>
+      _channel.invokeMethod<void>('clearConnectionLog');
 }

@@ -155,6 +155,8 @@ final class ApiClient {
           (value) =>
               BoundDevice.fromJson(Map<String, dynamic>.from(value as Map)),
         )
+        // 兼容尚未升级的服务端，账户页永远只展示当前有效绑定。
+        .where((device) => device.status == 'active')
         .toList(growable: false);
   }
 

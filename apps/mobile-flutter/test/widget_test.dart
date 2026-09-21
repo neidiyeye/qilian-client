@@ -1,3 +1,4 @@
+import 'package:country_flags/country_flags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,61 @@ Widget _testApp({
 }
 
 void main() {
+  test('traffic snapshots derive per-second rates without changing totals', () {
+    const previous = TrafficSnapshot(
+      uploadBytes: 1000,
+      downloadBytes: 2000,
+      available: true,
+    );
+    const current = TrafficSnapshot(
+      uploadBytes: 3048,
+      downloadBytes: 6096,
+      available: true,
+    );
+
+    final result = current.withRatesFrom(previous, const Duration(seconds: 2));
+    expect(result.uploadBytes, 3048);
+    expect(result.downloadBytes, 6096);
+    expect(result.uploadBytesPerSecond, 1024);
+    expect(result.downloadBytesPerSecond, 2048);
+  });
+
+  test('routing policy summary excludes credentials and exposes behavior', () {
+    final summary = RoutingPolicySummary.fromConfig({
+      'client_options': {
+        'policy_revision': 12,
+        'dns_strategy': 'prefer_ipv4',
+        'enable_ipv6': true,
+        'enable_sniff': false,
+      },
+      'route': {
+        'rule_set': [
+          {'tag': 'geosite-cn'},
+          {'tag': 'geoip-cn'},
+        ],
+        'rules': [
+          {'ip_is_private': true, 'outbound': 'direct'},
+          {
+            'domain_suffix': ['example.com'],
+            'outbound': 'route-123',
+          },
+        ],
+      },
+      'outbounds': [
+        {'password': 'must-not-be-read'},
+      ],
+    });
+
+    expect(summary.revision, 12);
+    expect(summary.directPrivateNetworks, isTrue);
+    expect(summary.cnDomainRules, isTrue);
+    expect(summary.cnIpRules, isTrue);
+    expect(summary.enableIPv6, isTrue);
+    expect(summary.enableSniff, isFalse);
+    expect(summary.customRouteCount, 1);
+    expect(summary.toJson().toString(), isNot(contains('must-not-be-read')));
+  });
+
   testWidgets('brand lockup renders the product name', (tester) async {
     await tester.pumpWidget(
       _testApp(home: const Scaffold(body: BrandLockup(compact: false))),
@@ -31,6 +87,43 @@ void main() {
 
     expect(find.text('启连加速器'), findsOneWidget);
     expect(find.byType(BrandMark), findsOneWidget);
+  });
+
+  testWidgets('region flags use bundled image assets instead of emoji fonts', (
+    tester,
+  ) async {
+    const regions = [
+      'HK',
+      'JP',
+      'SG',
+      'TW',
+      'KR',
+      'MY',
+      'US',
+      'CA',
+      'UK',
+      'DE',
+      'IN',
+      'FR',
+      'AU',
+      'NL',
+    ];
+    await tester.pumpWidget(
+      _testApp(
+        home: Scaffold(
+          body: Wrap(
+            children: [
+              for (final region in regions)
+                RegionFlag(region: region, size: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CountryFlag), findsNWidgets(regions.length));
+    expect(find.text('🇹🇼'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('login stays usable on an iPhone SE sized viewport', (
@@ -330,6 +423,98 @@ void main() {
     expect(find.textContaining('12:30'), findsNothing);
   });
 
+  testWidgets('account marks only the matching installation as current', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), vpn: _FakeVpnCore())
+      ..user = const UserProfile(id: 'user', username: 'demo', locale: 'zh-CN')
+      ..devices = [
+        BoundDevice(
+          id: 'binding-1',
+          deviceId: 'other-installation',
+          platform: 'ios',
+          name: 'iPhone',
+          status: 'active',
+          lastLoginAt: DateTime(2026, 9, 18),
+        ),
+        BoundDevice(
+          id: 'binding-2',
+          deviceId: 'current-installation',
+          platform: 'ios',
+          name: 'iPhone',
+          status: 'active',
+          lastLoginAt: DateTime(2026, 9, 18),
+        ),
+      ]
+      ..currentDeviceId = 'current-installation'
+      ..authenticated = true
+      ..booting = false;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_testApp(home: MainShell(controller: controller)));
+    await tester.tap(find.text('我的').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前设备'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('account exposes copyable public ID and routing policy details', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), vpn: _FakeVpnCore())
+      ..user = const UserProfile(
+        id: 'internal-user-id',
+        publicId: 'QL-20260921-ABCD',
+        username: 'demo',
+        locale: 'zh-CN',
+      )
+      ..routingPolicy = const RoutingPolicySummary(
+        revision: 8,
+        directPrivateNetworks: true,
+        cnDomainRules: true,
+        cnIpRules: true,
+        dnsStrategy: 'prefer_ipv4',
+        enableIPv6: false,
+        enableSniff: true,
+        customRouteCount: 2,
+      )
+      ..authenticated = true
+      ..booting = false;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_testApp(home: MainShell(controller: controller)));
+    await tester.tap(find.text('我的').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('QL-20260921-ABCD'), findsOneWidget);
+    expect(find.textContaining('internal-user-id'), findsNothing);
+    await tester.tap(find.text('智能规则'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('策略版本'), findsOneWidget);
+    expect(find.text('v8'), findsOneWidget);
+    expect(find.text('局域网与私有地址'), findsOneWidget);
+    expect(find.text('2 条'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('node catalog includes an explicit refresh action', (
+    tester,
+  ) async {
+    final controller = AppController(api: ApiClient(), vpn: _FakeVpnCore())
+      ..user = const UserProfile(id: 'user', username: 'demo', locale: 'zh-CN')
+      ..authenticated = true
+      ..booting = false;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_testApp(home: MainShell(controller: controller)));
+    await tester.tap(find.text('节点').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('刷新'), findsOneWidget);
+  });
+
   testWidgets('node health check controls stay hidden', (tester) async {
     final controller = AppController(api: ApiClient(), vpn: _FakeVpnCore())
       ..user = const UserProfile(id: 'user', username: 'demo', locale: 'zh-CN')
@@ -471,6 +656,9 @@ final class _FakeVpnCore implements VpnCore {
 
   @override
   Future<void> checkConnectivity(String url) async {}
+
+  @override
+  Future<void> clearConnectionLog() async {}
 
   @override
   Future<void> connect(
