@@ -11,7 +11,7 @@ Hiddify，也不是远程网页壳。服务端源码、节点订阅地址、节�
 
 公开客户端源码：
 
-`http://super-git.qulora.sbs/vpn/qilian-client`
+`https://github.com/neidiyeye/qilian-client`
 
 公开仓库固定使用 sing-box `v1.14.0`，commit
 `0b8995879f29a9b98ee027bc17b75e101445b238`，并提供 Libbox 可复现构建脚本。
@@ -48,7 +48,7 @@ The Packet Tunnel uses the open-source sing-box/Libbox project only as its
 network protocol engine. The exact upstream revision and reproducible build
 instructions are available in our public client source repository:
 
-http://super-git.qulora.sbs/vpn/qilian-client
+https://github.com/neidiyeye/qilian-client
 
 Build 5 also exposes the effective smart-routing policy in the app, shows
 real-time tunnel transfer rates, and includes clearer account and device
