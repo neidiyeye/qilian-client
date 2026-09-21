@@ -35,6 +35,8 @@ abstract final class FireLinkColors {
   static const success = Color(0xFF1D9A6C);
   static const warning = Color(0xFFD98A16);
   static const danger = Color(0xFFD83D32);
+  static const upload = Color(0xFFE06C3B);
+  static const download = Color(0xFF3478C9);
   static const ink = Color(0xFF171816);
   static const paper = Color(0xFFF6F6F3);
   static const dark = Color(0xFF111210);
@@ -892,14 +894,14 @@ class ConnectScreen extends StatelessWidget {
                   children: [
                     _TrafficValue(
                       icon: LucideIcons.arrowUpToLine,
+                      color: FireLinkColors.upload,
                       bytes: controller.traffic.uploadBytesPerSecond,
-                      available: controller.traffic.available,
                     ),
                     const SizedBox(width: 30),
                     _TrafficValue(
                       icon: LucideIcons.arrowDownToLine,
+                      color: FireLinkColors.download,
                       bytes: controller.traffic.downloadBytesPerSecond,
-                      available: controller.traffic.available,
                     ),
                   ],
                 ),
@@ -962,29 +964,33 @@ class ConnectScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 10),
-              SegmentedButton<ConnectionMode>(
-                segments: [
-                  ButtonSegment(
-                    value: ConnectionMode.rule,
-                    icon: const Icon(LucideIcons.route, size: 18),
-                    label: Text(text.smartMode),
-                  ),
-                  ButtonSegment(
-                    value: ConnectionMode.global,
-                    icon: const Icon(LucideIcons.globe2, size: 18),
-                    label: Text(text.globalMode),
-                  ),
-                ],
-                selected: {controller.mode},
-                onSelectionChanged:
-                    controller.vpnStatus == VpnStatus.disconnected
-                    ? (value) => controller.setMode(value.first)
-                    : null,
-                showSelectedIcon: false,
-                style: ButtonStyle(
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+              Semantics(
+                enabled: controller.vpnStatus == VpnStatus.disconnected,
+                child: AbsorbPointer(
+                  absorbing: controller.vpnStatus != VpnStatus.disconnected,
+                  child: SegmentedButton<ConnectionMode>(
+                    segments: [
+                      ButtonSegment(
+                        value: ConnectionMode.rule,
+                        icon: const Icon(LucideIcons.route, size: 18),
+                        label: Text(text.smartMode),
+                      ),
+                      ButtonSegment(
+                        value: ConnectionMode.global,
+                        icon: const Icon(LucideIcons.globe2, size: 18),
+                        label: Text(text.globalMode),
+                      ),
+                    ],
+                    selected: {controller.mode},
+                    onSelectionChanged: (value) =>
+                        controller.setMode(value.first),
+                    showSelectedIcon: false,
+                    style: ButtonStyle(
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2060,25 +2066,21 @@ class _StatusPill extends StatelessWidget {
 class _TrafficValue extends StatelessWidget {
   const _TrafficValue({
     required this.icon,
+    required this.color,
     required this.bytes,
-    required this.available,
   });
 
   final IconData icon;
+  final Color color;
   final int bytes;
-  final bool available;
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(
-        icon,
-        size: 17,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      Icon(icon, size: 17, color: color),
       const SizedBox(width: 6),
       Text(
-        available ? _rate(bytes) : '--',
+        _rate(bytes),
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],
         ),

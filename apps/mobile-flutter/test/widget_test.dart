@@ -288,6 +288,20 @@ void main() {
     expect(find.text('已加速'), findsOneWidget);
     expect(find.byIcon(LucideIcons.arrowUpToLine), findsOneWidget);
     expect(find.byIcon(LucideIcons.arrowDownToLine), findsOneWidget);
+    expect(find.text('0 B/s'), findsNWidgets(2));
+    expect(
+      tester.widget<Icon>(find.byIcon(LucideIcons.arrowUpToLine)).color,
+      FireLinkColors.upload,
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(LucideIcons.arrowDownToLine)).color,
+      FireLinkColors.download,
+    );
+    final modeSelector = tester.widget<SegmentedButton<ConnectionMode>>(
+      find.byType(SegmentedButton<ConnectionMode>),
+    );
+    expect(modeSelector.selected, {ConnectionMode.rule});
+    expect(modeSelector.onSelectionChanged, isNotNull);
     expect(tester.binding.hasScheduledFrame, isFalse);
     expect(tester.takeException(), isNull);
   });
